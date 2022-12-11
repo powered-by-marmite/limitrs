@@ -1,13 +1,16 @@
-use axum::body::{boxed, Body};
-use axum::http::{Response, StatusCode};
-use axum::{response::IntoResponse, routing::get, Router};
+use axum::{
+    extract::{Json, State},
+    http::StatusCode,
+    response::IntoResponse,
+    routing::get,
+    Router,
+};
 use clap::Parser;
+use client::{CountRequest, CountResponse, Direction};
 use std::net::{IpAddr, Ipv6Addr, SocketAddr};
-use std::path::PathBuf;
 use std::str::FromStr;
-use tokio::fs;
-use tower::{ServiceBuilder, ServiceExt};
-use tower_http::services::ServeDir;
+use std::sync::{Arc, Mutex};
+use tower::ServiceBuilder;
 use tower_http::trace::TraceLayer;
 
 const LOGGING_VARIABLE: &str = "RUST_LOG";
@@ -33,6 +36,19 @@ struct Opt {
     static_dir: String,
 }
 
+#[derive(Clone)]
+struct AppState {
+    pub count: Arc<Mutex<i32>>,
+}
+
+impl AppState {
+    fn new() -> AppState {
+        AppState {
+            count: Arc::new(Mutex::new(0)),
+        }
+    }
+}
+
 #[tokio::main]
 async fn main() {
     let opt = Opt::parse();
@@ -48,8 +64,13 @@ async fn main() {
     // log to the console
     tracing_subscriber::fmt::init();
 
+    let state = AppState::new();
+
     let app = Router::new()
-        .route("/api/hello", get(hello))
+        .route(
+            "/api/count",
+            get(get_count).post(post_count).with_state(state),
+        )
         .merge(axum_extra::routing::SpaRouter::new(
             "/assets",
             opt.static_dir,
@@ -69,6 +90,26 @@ async fn main() {
         .expect("Unable to start server");
 }
 
-async fn hello() -> impl IntoResponse {
-    "hello from server!"
+async fn get_count(State(state): State<AppState>) -> impl IntoResponse {
+    let response_json = serde_json::to_string(&CountResponse {
+        count: *state.count.lock().unwrap(),
+    });
+    match response_json {
+        Ok(j) => Ok(format!("{}", j)),
+        Err(_) => Err(StatusCode::INTERNAL_SERVER_ERROR),
+    }
+}
+
+async fn post_count(State(state): State<AppState>, payload: Json<CountRequest>) {
+    let payload: CountRequest = payload.0;
+    match payload.direction {
+        Direction::Increment => {
+            let mut s = state.count.lock().unwrap();
+            *s += 1;
+        }
+        Direction::Decrement => {
+            let mut s = state.count.lock().unwrap();
+            *s -= 1;
+        }
+    };
 }
