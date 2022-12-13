@@ -8,7 +8,7 @@ edition = "2021"
 [dependencies]
 client = { path = "../client", version = "0.1.0" }
 
-axum = "0.6.0"
+axum = { versin = "0.6.0", features = ["ws"] }
 axum-extra = { version = "0.4.0", features = ["spa"] }
 clap = { version = "4.0.26", features = ["derive"] }
 log = "0.4.17"

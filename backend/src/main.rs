@@ -1,9 +1,12 @@
 use axum::{
-    extract::{Json, State},
+    extract::{
+        ws::{Message, WebSocket, WebSocketUpgrade},
+        Json, State,
+    },
     http::StatusCode,
-    response::IntoResponse,
+    response::{IntoResponse, Response},
     routing::get,
-    Router,
+    Extension, Router,
 };
 use clap::Parser;
 use client::{CountRequest, CountResponse, Direction};
@@ -65,17 +68,20 @@ async fn main() {
     tracing_subscriber::fmt::init();
 
     let state = AppState::new();
+    let also_state = AppState::new();
 
     let app = Router::new()
         .route(
             "/api/count",
             get(get_count).post(post_count).with_state(state),
         )
+        .route("/ws/count", get(ws_handler))
         .merge(axum_extra::routing::SpaRouter::new(
             "/assets",
             opt.static_dir,
         ))
-        .layer(ServiceBuilder::new().layer(TraceLayer::new_for_http()));
+        .layer(ServiceBuilder::new().layer(TraceLayer::new_for_http()))
+        .layer(Extension(also_state));
 
     let sock_addr = SocketAddr::from((
         IpAddr::from_str(opt.addr.as_str()).unwrap_or(IpAddr::V6(Ipv6Addr::LOCALHOST)),
@@ -112,4 +118,48 @@ async fn post_count(State(state): State<AppState>, payload: Json<CountRequest>) 
             *s -= 1;
         }
     };
+}
+
+async fn ws_handler(ws: WebSocketUpgrade, Extension(state): Extension<AppState>) -> Response {
+    log::info!("client connected");
+    ws.on_upgrade(|socket| handle_socket(socket, state))
+}
+
+async fn handle_socket(mut socket: WebSocket, state: AppState) {
+    if let Some(msg) = socket.recv().await {
+        if let Ok(msg) = msg {
+            match msg {
+                Message::Text(_) => {
+                    let response_json = serde_json::to_string(&CountResponse {
+                        count: *state.count.lock().unwrap(),
+                    });
+                    match response_json {
+                        Ok(j) => {
+                            // send message
+                            if socket.send(Message::Text(j)).await.is_err() {
+                                log::error!("client disconnected during transfer");
+                            }
+                        }
+                        Err(_) => log::error!(""),
+                    }
+                }
+                Message::Binary(_) => {
+                    log::error!("client sent binary data");
+                }
+                Message::Ping(_) => {
+                    log::info!("socket ping");
+                }
+                Message::Pong(_) => {
+                    log::info!("socket pong");
+                }
+                Message::Close(_) => {
+                    log::info!("client disconnected");
+                    return;
+                }
+            }
+        } else {
+            log::info!("client disconnected");
+            return;
+        }
+    }
 }
