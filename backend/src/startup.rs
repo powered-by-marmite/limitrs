@@ -3,7 +3,7 @@ use crate::{
     routes::health_check::health_check,
     state::AppState,
 };
-use axum::{http::StatusCode, routing::get, Extension, Router};
+use axum::{http::StatusCode, routing::get, routing::post, Extension, Router};
 use std::net::TcpListener;
 use tower::ServiceBuilder;
 use tower_http::trace::TraceLayer;
@@ -26,10 +26,8 @@ fn build_router(static_dir: String) -> Router {
 
     Router::new()
         .route("/health_check", get(health_check))
-        .route(
-            "/api/count",
-            get(get_count).post(post_count),
-        )
+        .route("/api/count", get(get_count))
+        .route("/api/count/:direction", post(post_count))
         .route("/ws/count", get(ws_handler))
         // frontend serving: static assets for the Single-Page Application
         .merge(axum_extra::routing::SpaRouter::new("/assets", static_dir))

@@ -1,11 +1,11 @@
-use std::sync::atomic::Ordering;
+use std::{sync::atomic::Ordering, str::FromStr};
 use std::borrow::Cow;
 use std::ops::ControlFlow;
 use crate::state::AppState;
 use axum::{
     extract::{
         ws::{Message, WebSocket, WebSocketUpgrade, CloseFrame},
-        Json,
+        Path,
     },
     http::StatusCode,
     response::{IntoResponse, Response},
@@ -37,12 +37,15 @@ fn try_get_count(state: &AppState) -> Result<String, ServerError> {
 
 pub async fn post_count(
     Extension(state): Extension<AppState>,
-    payload: Json<CountRequest>,
+    Path(direction): Path<String>,
 ) -> impl IntoResponse {
-    let request: CountRequest = payload.0;
-    match try_alter_count(&state, request) {
-        Ok(_) => StatusCode::OK,
-        Err(_) => StatusCode::INTERNAL_SERVER_ERROR,
+    if let Ok(request) = CountRequest::from_str(&direction) {
+        match try_alter_count(&state, request) {
+            Ok(_) => StatusCode::OK,
+            Err(_) => StatusCode::INTERNAL_SERVER_ERROR,
+        }
+    } else {
+        StatusCode::BAD_REQUEST
     }
 }
 

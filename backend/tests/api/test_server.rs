@@ -1,7 +1,7 @@
 use backend::startup::run;
 
 use std::net::{Ipv4Addr, SocketAddr, TcpListener};
-use client::{CountRequest, Direction};
+use client::CountRequest;
 
 pub struct TestServer {
     pub address: String,
@@ -46,10 +46,9 @@ impl TestServer {
     pub async fn post_update(&self, message: &CountRequest) {
         let response = self.client
         .post(&format!(
-            "http://{}:{}/api/count",
-            self.address, self.port,
+            "http://{}:{}/api/count/{}",
+            self.address, self.port, message.to_string()
         ))
-        .json(message)
         .send()
         .await
         .expect("POST failed");
