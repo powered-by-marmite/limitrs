@@ -1,14 +1,14 @@
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, atomic::AtomicI32};
 
 #[derive(Clone)]
 pub struct AppState {
-    pub count: Arc<Mutex<i32>>,
+    pub count: Arc<AtomicI32>,
 }
 
 impl AppState {
     pub fn new() -> AppState {
         AppState {
-            count: Arc::new(Mutex::new(0)),
+            count: Arc::new(AtomicI32::new(0)),
         }
     }
 }

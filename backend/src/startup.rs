@@ -14,9 +14,6 @@ async fn fallback() -> (StatusCode, &'static str) {
 
 pub async fn run(listener: TcpListener, static_dir: String) {
     let app = build_router(static_dir);
-
-    //let listener = std::net::TcpListener::bind(sock_addr).unwrap();
-    //axum::Server::from_tcp(listener);
     
     axum::Server::from_tcp(listener).expect("failed to bind to socket address")
         .serve(app.into_make_service())
