@@ -2,3 +2,13 @@
 target = "index.html"
 dist = "../dist"
 
+[serve]
+address = "127.0.0.1"
+port = 8080
+
+[[proxy]]
+backend = "http://127.0.0.1:8081/api"
+
+[[proxy]]
+backend = "ws://127.0.0.1:8081/ws"
+ws = true

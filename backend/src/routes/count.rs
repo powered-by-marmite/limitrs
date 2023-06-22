@@ -81,13 +81,32 @@ async fn handle_socket<>(mut socket: WebSocket, state: AppState) {
 
     let _send_task = tokio::spawn(async move {
         let mut latest_count = state.count.load(Ordering::Relaxed);
+        
+        // on connection, send initial state
+        let response_json = serde_json::to_string(&CountResponse {
+            count: latest_count,
+        });
+        match response_json {
+            Ok(j) => {
+                // send message
+                if sender
+                    .send(Message::Text(j))
+                    .await
+                    .is_err() {
+                    log::error!("client disconnected during transfer");
+                }
+            }
+            Err(_) => log::error!("abject failure to build JSON"),
+        }
+
+        // infinite loop to dispatch state changes to socket
         loop {
             let count = state.count.load(Ordering::Relaxed);
             if count != latest_count {
                 latest_count = count;
 
                 let response_json = serde_json::to_string(&CountResponse {
-                    count: state.count.load(Ordering::Relaxed),
+                    count,
                 });
                 match response_json {
                     Ok(j) => {

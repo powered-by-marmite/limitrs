@@ -38,6 +38,13 @@ async fn websocket_reads_counts() {
     };
     assert_eq!(msg, vec![1, 2, 3]);
 
+    let msg = match socket.next().await.unwrap().unwrap() {
+        tungstenite::Message::Text(msg) => msg,
+        _other => panic!("unexpected message"),
+    };
+    
+    assert_eq!(msg, r#"{"count":0}"#);
+
     test_server.post_update(&CountRequest { direction: Direction::Increment }).await;
     test_server.assert_count_value(1).await;
 
